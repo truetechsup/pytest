@@ -1,4 +1,3 @@
-pytest>=8.4.2
-testit-adapter-pytest>=3.9.1
+testit-adapter-pytest>=3.10.0
 testit-cli>=2.7.0
 
