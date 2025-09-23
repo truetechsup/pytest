@@ -19,7 +19,7 @@ jobs:
     # - name: Install dependencies (adapterMode=1 + CLI)
     #   run: |
     #     python -m pip install --upgrade pip
-    #     pip install -r requirements0.txt
+    #     pip install -r requirements1.txt
         
     - name: Install dependencies (adapterMode=0)
       run: |
