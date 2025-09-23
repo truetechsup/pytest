@@ -16,10 +16,15 @@ jobs:
       with:
         python-version: '3.10'
     
-    - name: Install dependencies
+    # - name: Install dependencies (adapterMode=1 + CLI)
+    #   run: |
+    #     python -m pip install --upgrade pip
+    #     pip install -r requirements0.txt
+        
+    - name: Install dependencies (adapterMode=0)
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements0.txt
     
     - name: Get data from webhook
       run: |
@@ -30,22 +35,37 @@ jobs:
     - name: Setup TestIT filter
       run: |
         export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
-        testit autotests_filter \
-          --url ${{ secrets.TMS_URL }} \
-          --configuration-id $CONFIGURATION_IDS \
-          --testrun-id $TEST_RUN_ID \
-          --framework pytest \
-          --disable-cert-validation \
-          --output tmp/filter.txt
-    
-    - name: Run filtered tests
-      run: |
         pytest "$(cat tmp/filter.txt)" \
           --tmsConfigurationId=$CONFIGURATION_IDS \
           --tmsProjectId=$PROJECT_ID \
           --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
           --tmsUrl=${{ secrets.TMS_URL }} \
           --tmsTestRunId=$TEST_RUN_ID \
-          --tmsAdapterMode=1 \
+          --tmsAdapterMode=0 \
           --tmsCertValidation=false \
           --testit
+
+    # - name: Setup TestIT filter
+    #   run: |
+    #     export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
+    #     testit autotests_filter \
+    #       --url ${{ secrets.TMS_URL }} \
+    #       --configuration-id $CONFIGURATION_IDS \
+    #       --testrun-id $TEST_RUN_ID \
+    #       --framework pytest \
+    #       --disable-cert-validation \
+    #       --output tmp/filter.txt
+    
+    # - name: Run filtered tests
+    #   run: |
+    #     pytest "$(cat tmp/filter.txt)" \
+    #       --tmsConfigurationId=$CONFIGURATION_IDS \
+    #       --tmsProjectId=$PROJECT_ID \
+    #       --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
+    #       --tmsUrl=${{ secrets.TMS_URL }} \
+    #       --tmsTestRunId=$TEST_RUN_ID \
+    #       --tmsAdapterMode=1 \
+    #       --tmsCertValidation=false \
+    #       --testit
+    
+    
