@@ -32,10 +32,10 @@ jobs:
         echo "PROJECT_ID=${{ github.event.client_payload.project_id }}" >> $GITHUB_ENV
         echo "CONFIGURATION_IDS=${{ github.event.client_payload.configuration_id[0] }}" >> $GITHUB_ENV
     
-    - name: Setup TestIT filter
+    - name: Run tests
       run: |
         export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
-        pytest "$(cat tmp/filter.txt)" \
+        pytest \
           --tmsConfigurationId=$CONFIGURATION_IDS \
           --tmsProjectId=$PROJECT_ID \
           --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
