@@ -36,7 +36,20 @@ jobs:
         python -m pip install --upgrade pip
         pip install testit-adapter-pytest==3.12.0
         pip install testit-cli==2.8.1
-    
+
+    - name: Run tests (adapterMode=2)
+      if: env.ADAPTER_MODE == '2'
+      run: |
+        export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
+        pytest \
+          --tmsConfigurationId=$CONFIGURATION_IDS \
+          --tmsProjectId=$PROJECT_ID \
+          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
+          --tmsUrl=$TMS_URL \
+          --tmsAdapterMode=2 \
+          --tmsCertValidation=false \
+          --testit
+
     - name: Setup TestIT filter (adapterMode=1)
       if: env.ADAPTER_MODE == '1'
       run: |
@@ -48,7 +61,21 @@ jobs:
           --framework pytest \
           --disable-cert-validation \
           --output tmp/filter.txt
-    
+
+    - name: Run filtered tests (adapterMode=1)
+      if: env.ADAPTER_MODE == '1'
+      run: |
+        export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
+        pytest "$(cat tmp/filter.txt)" \
+          --tmsConfigurationId=$CONFIGURATION_IDS \
+          --tmsProjectId=$PROJECT_ID \
+          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
+          --tmsUrl=$TMS_URL \
+          --tmsTestRunId=$TEST_RUN_ID \
+          --tmsAdapterMode=1 \
+          --tmsCertValidation=false \
+          --testit    
+
     - name: Run tests (adapterMode=0)
       if: env.ADAPTER_MODE == '0'
       run: |
@@ -63,31 +90,7 @@ jobs:
           --tmsCertValidation=false \
           --testit
     
-    - name: Run tests (adapterMode=2)
-      if: env.ADAPTER_MODE == '2'
-      run: |
-        export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
-        pytest \
-          --tmsConfigurationId=$CONFIGURATION_IDS \
-          --tmsProjectId=$PROJECT_ID \
-          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
-          --tmsUrl=$TMS_URL \
-          --tmsAdapterMode=2 \
-          --tmsCertValidation=false \
-          --testit
-    
-    - name: Run filtered tests (adapterMode=1)
-      if: env.ADAPTER_MODE == '1'
-      run: |
-        export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
-        pytest "$(cat tmp/filter.txt)" \
-          --tmsConfigurationId=$CONFIGURATION_IDS \
-          --tmsProjectId=$PROJECT_ID \
-          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
-          --tmsUrl=$TMS_URL \
-          --tmsTestRunId=$TEST_RUN_ID \
-          --tmsAdapterMode=1 \
-          --tmsCertValidation=false \
-          --testit
+
+
     
     
