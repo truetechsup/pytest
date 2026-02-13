@@ -42,10 +42,11 @@ jobs:
       run: |
         export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
         pytest \
-          --tmsConfigurationId=$CONFIGURATION_IDS \
-          --tmsProjectId=$PROJECT_ID \
-          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
           --tmsUrl=$TMS_URL \
+          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
+          --tmsProjectId=$PROJECT_ID \
+          --tmsConfigurationId=$CONFIGURATION_IDS \
+          --tmsTestRunName="Запуск всех автотестов (adapterMode=2)" \
           --tmsAdapterMode=2 \
           --tmsCertValidation=false \
           --testit
@@ -67,11 +68,12 @@ jobs:
       run: |
         export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
         pytest "$(cat tmp/filter.txt)" \
-          --tmsConfigurationId=$CONFIGURATION_IDS \
-          --tmsProjectId=$PROJECT_ID \
-          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
           --tmsUrl=$TMS_URL \
+          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
+          --tmsProjectId=$PROJECT_ID \
+          --tmsConfigurationId=$CONFIGURATION_IDS \
           --tmsTestRunId=$TEST_RUN_ID \
+          --tmsTestRunName="Запуск автотестов с фильтром (adapterMode=1 + Test IT CLI)" \
           --tmsAdapterMode=1 \
           --tmsCertValidation=false \
           --testit    
@@ -81,11 +83,12 @@ jobs:
       run: |
         export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
         pytest \
-          --tmsConfigurationId=$CONFIGURATION_IDS \
-          --tmsProjectId=$PROJECT_ID \
-          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
           --tmsUrl=$TMS_URL \
+          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
+          --tmsProjectId=$PROJECT_ID \
+          --tmsConfigurationId=$CONFIGURATION_IDS \
           --tmsTestRunId=$TEST_RUN_ID \
+          --tmsTestRunName="Запуск автотестов с фильтром (adapterMode=0)" \
           --tmsAdapterMode=0 \
           --tmsCertValidation=false \
           --testit
