@@ -1,4 +1,0 @@
-
-testit-adapter-pytest>=3.10.0
-
-
