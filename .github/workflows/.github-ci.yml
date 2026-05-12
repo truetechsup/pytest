@@ -7,15 +7,15 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
         python-version: '3.13'
-    
+
     - name: Get data from webhook
       run: |
         echo "ADAPTER_MODE=${{ github.event.client_payload.adapter_mode }}" >> $GITHUB_ENV
@@ -23,77 +23,92 @@ jobs:
         echo "TEST_RUN_ID=${{ github.event.client_payload.test_run_id }}" >> $GITHUB_ENV
         echo "PROJECT_ID=${{ github.event.client_payload.project_id }}" >> $GITHUB_ENV
         echo "CONFIGURATION_IDS=${{ github.event.client_payload.configuration_id[0] }}" >> $GITHUB_ENV
-    
-    - name: Install dependencies (adapterMode=0 or 2)
-      if: env.ADAPTER_MODE == '0' || env.ADAPTER_MODE == '2'
+
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install testit-adapter-pytest==3.12.0
-    
-    - name: Install dependencies (adapterMode=1 + CLI)
+        pip install testit-adapter-pytest testit-cli
+
+    - name: Download sync-storage
+      run: |
+        mkdir -p .caches
+        # Download latest stable version (adjust URL if needed)
+        curl -L -o .caches/syncstorage-linux-amd64 https://github.com/testit-tms/sync-storage/releases/latest/download/syncstorage-linux-amd64
+        chmod +x .caches/syncstorage-linux-amd64
+
+    - name: Ensure test run exists (create if not provided)
+      if: env.TEST_RUN_ID == ''
+      run: |
+        mkdir -p tmp
+        BASE_URL="${{ env.TMS_URL }}"
+        BASE_URL="${BASE_URL%/}"
+        BODY=$(jq -nc \
+          --arg projectId "${{ env.PROJECT_ID }}" \
+          --arg name "CI/CD Test Run $(date +'%Y-%m-%d %H:%M:%S')" \
+          '{projectId: $projectId, name: $name}')
+        curl -sS -f -X POST "${BASE_URL}/api/v2/testRuns" \
+          -H "accept: application/json" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: PrivateToken ${{ secrets.TMS_PRIVATE_TOKEN }}" \
+          -d "$BODY" \
+          | jq -er '.id' > tmp/testrun_id.txt
+        echo "TEST_RUN_ID=$(cat tmp/testrun_id.txt)" >> $GITHUB_ENV
+        echo "TEST_RUN_ID=$(cat tmp/testrun_id.txt)" >> .env
+
+    - name: Start sync-storage
+      run: |
+        nohup .caches/syncstorage-linux-amd64 \
+          --testRunId ${{ env.TEST_RUN_ID }} \
+          --port 49152 \
+          --baseURL ${{ env.TMS_URL }} \
+          --privateToken ${{ secrets.TMS_PRIVATE_TOKEN }} \
+          > service.log 2>&1 &
+        echo $! > syncstorage.pid
+        # Give it a moment to start
+        sleep 3
+
+    - name: Generate filter file (adapterMode=1 only)
       if: env.ADAPTER_MODE == '1'
       run: |
-        python -m pip install --upgrade pip
-        pip install testit-adapter-pytest==3.12.0
-        pip install testit-cli==2.8.1
-
-    - name: Run tests (adapterMode=2)
-      if: env.ADAPTER_MODE == '2'
-      run: |
-        export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
-        pytest \
-          --tmsUrl=$TMS_URL \
-          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
-          --tmsProjectId=$PROJECT_ID \
-          --tmsConfigurationId=$CONFIGURATION_IDS \
-          --tmsTestRunName="Запуск всех автотестов (adapterMode=2)" \
-          --tmsAdapterMode=2 \
-          --tmsCertValidation=false \
-          --testit
-
-    - name: Setup TestIT filter (adapterMode=1)
-      if: env.ADAPTER_MODE == '1'
-      run: |
-        export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
+        mkdir -p tmp
         testit autotests_filter \
-          --url $TMS_URL \
-          --configuration-id $CONFIGURATION_IDS \
-          --testrun-id $TEST_RUN_ID \
+          --url ${{ env.TMS_URL }} \
+          --configuration-id ${{ env.CONFIGURATION_IDS }} \
+          --testrun-id ${{ env.TEST_RUN_ID }} \
           --framework pytest \
           --disable-cert-validation \
           --output tmp/filter.txt
 
-    - name: Run filtered tests (adapterMode=1)
-      if: env.ADAPTER_MODE == '1'
+    - name: Run tests
       run: |
-        export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
-        pytest "$(cat tmp/filter.txt)" \
-          --tmsUrl=$TMS_URL \
+        if [ "${{ env.ADAPTER_MODE }}" == "1" ]; then
+          PYTEST_ARGS="$(cat tmp/filter.txt)"
+        else
+          PYTEST_ARGS="."
+        fi
+        pytest $PYTEST_ARGS \
+          --tmsUrl=${{ env.TMS_URL }} \
           --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
-          --tmsProjectId=$PROJECT_ID \
-          --tmsConfigurationId=$CONFIGURATION_IDS \
-          --tmsTestRunId=$TEST_RUN_ID \
-          --tmsTestRunName="Запуск автотестов с фильтром (adapterMode=1 + Test IT CLI)" \
-          --tmsAdapterMode=1 \
-          --tmsCertValidation=false \
-          --testit    
-
-    - name: Run tests (adapterMode=0)
-      if: env.ADAPTER_MODE == '0'
-      run: |
-        export TMS_TOKEN=${{ secrets.TMS_PRIVATE_TOKEN }}
-        pytest \
-          --tmsUrl=$TMS_URL \
-          --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
-          --tmsProjectId=$PROJECT_ID \
-          --tmsConfigurationId=$CONFIGURATION_IDS \
-          --tmsTestRunId=$TEST_RUN_ID \
-          --tmsTestRunName="Запуск автотестов с фильтром (adapterMode=0)" \
-          --tmsAdapterMode=0 \
+          --tmsProjectId=${{ env.PROJECT_ID }} \
+          --tmsConfigurationId=${{ env.CONFIGURATION_IDS }} \
+          --tmsTestRunId=${{ env.TEST_RUN_ID }} \
+          --tmsTestRunName="Test run from CI/CD" \
+          --tmsAdapterMode=${{ env.ADAPTER_MODE }} \
           --tmsCertValidation=false \
           --testit
-    
 
+    - name: Wait for sync-storage completion
+      if: always()
+      run: |
+        curl -v "http://127.0.0.1:49152/wait-completion?testRunId=${{ env.TEST_RUN_ID }}" || true
+        # Optionally kill sync-storage
+        if [ -f syncstorage.pid ]; then
+          kill $(cat syncstorage.pid) || true
+        fi
 
-    
-    
+    - name: Upload sync-storage logs (on failure)
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: syncstorage-logs
+        path: service.log
