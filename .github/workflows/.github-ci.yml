@@ -108,7 +108,7 @@ jobs:
 
     - name: Upload sync-storage logs (on failure)
       if: failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: syncstorage-logs
         path: service.log
