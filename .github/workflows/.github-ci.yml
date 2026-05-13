@@ -32,18 +32,25 @@ jobs:
     - name: Download sync-storage
       run: |
         mkdir -p .caches
-        # Get latest version tag from the public repo
-        LATEST_VERSION=$(curl -s "https://api.github.com/repos/testit-tms/sync-storage-public/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        # Получаем JSON последнего релиза
+        RELEASE_JSON=$(curl -s "https://api.github.com/repos/testit-tms/sync-storage-public/releases/latest")
+        LATEST_VERSION=$(echo "$RELEASE_JSON" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
         if [ -z "$LATEST_VERSION" ]; then
           echo "Failed to get latest version"
           exit 1
         fi
         echo "Latest sync-storage version: $LATEST_VERSION"
-        # Download binary for linux amd64
-        DOWNLOAD_URL="https://github.com/testit-tms/sync-storage-public/releases/download/${LATEST_VERSION}/syncstorage-linux-amd64"
+
+        # Ищем актив для linux_amd64
+        DOWNLOAD_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": "[^"]*linux_amd64"' | sed -E 's/.*"([^"]+)".*/\1/')
+        if [ -z "$DOWNLOAD_URL" ]; then
+          echo "Could not find linux_amd64 binary in release"
+          exit 1
+        fi
+
         curl -L -o .caches/syncstorage-linux-amd64 "$DOWNLOAD_URL"
         chmod +x .caches/syncstorage-linux-amd64
-        # Verify it's a real executable
+        # Проверка, что скачан реальный исполняемый файл
         file .caches/syncstorage-linux-amd64 | grep -q "ELF.*executable" || { echo "Downloaded file is not an executable"; cat .caches/syncstorage-linux-amd64 | head -c 200; exit 1; }
 
     - name: Ensure test run exists (create if not provided)
