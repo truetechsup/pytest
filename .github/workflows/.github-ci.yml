@@ -32,9 +32,19 @@ jobs:
     - name: Download sync-storage
       run: |
         mkdir -p .caches
-        # Download latest stable version (adjust URL if needed)
-        curl -L -o .caches/syncstorage-linux-amd64 https://github.com/testit-tms/sync-storage/releases/latest/download/syncstorage-linux-amd64
+        # Get latest version tag from the public repo
+        LATEST_VERSION=$(curl -s "https://api.github.com/repos/testit-tms/sync-storage-public/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        if [ -z "$LATEST_VERSION" ]; then
+          echo "Failed to get latest version"
+          exit 1
+        fi
+        echo "Latest sync-storage version: $LATEST_VERSION"
+        # Download binary for linux amd64
+        DOWNLOAD_URL="https://github.com/testit-tms/sync-storage-public/releases/download/${LATEST_VERSION}/syncstorage-linux-amd64"
+        curl -L -o .caches/syncstorage-linux-amd64 "$DOWNLOAD_URL"
         chmod +x .caches/syncstorage-linux-amd64
+        # Verify it's a real executable
+        file .caches/syncstorage-linux-amd64 | grep -q "ELF.*executable" || { echo "Downloaded file is not an executable"; cat .caches/syncstorage-linux-amd64 | head -c 200; exit 1; }
 
     - name: Ensure test run exists (create if not provided)
       if: env.TEST_RUN_ID == ''
@@ -64,7 +74,6 @@ jobs:
           --privateToken ${{ secrets.TMS_PRIVATE_TOKEN }} \
           > service.log 2>&1 &
         echo $! > syncstorage.pid
-        # Give it a moment to start
         sleep 3
 
     - name: Generate filter file (adapterMode=1 only)
@@ -101,7 +110,6 @@ jobs:
       if: always()
       run: |
         curl -v "http://127.0.0.1:49152/wait-completion?testRunId=${{ env.TEST_RUN_ID }}" || true
-        # Optionally kill sync-storage
         if [ -f syncstorage.pid ]; then
           kill $(cat syncstorage.pid) || true
         fi
