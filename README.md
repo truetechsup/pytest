@@ -41,18 +41,6 @@
 |---|---|
 | `TMS_PRIVATE_TOKEN` | Приватный токен пользователя Test IT |
 
-## Локальный запуск
-
-```bash
-pip install testit-adapter-pytest pytest-dependency
-```
-
-```bash
-pytest . --testit --tmsUrl=https://team-0tm5.testit.software --tmsPrivateToken=<token> --tmsProjectId=<project_id> --tmsConfigurationId=<configuration_id> --tmsAdapterMode=2
-```
-
-Все параметры адаптера описаны в [документации testit-adapter-pytest](https://github.com/testit-tms/adapters-python/tree/main/testit-adapter-pytest#configuration).
-
 ## Структура проекта
 
 * **.github/workflows/.github-ci.yml** – workflow запуска тестов по webhook из Test IT
