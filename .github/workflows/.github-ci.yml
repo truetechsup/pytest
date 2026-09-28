@@ -7,6 +7,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Через сколько секунд sync-storage сам завершит удерживаемый "in progress" результат.
+      # Задаётся на уровне job, чтобы подхватывался и нашим sync-storage (adapterMode=0),
+      # и тем, который адаптер запускает сам (adapterMode=2)
+      TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S: "600"
 
     steps:
     - uses: actions/checkout@v3
@@ -62,7 +67,7 @@ jobs:
           --port 49152 \
           --baseURL ${{ env.TMS_URL }} \
           --privateToken ${{ secrets.TMS_PRIVATE_TOKEN }} \
-          > service.log 2>&1 &
+          > sync-storage.log 2>&1 &
         echo $! > syncstorage.pid
         sleep 3
 
@@ -87,19 +92,33 @@ jobs:
           --tmsTestRunLinks="$TEST_RUN_LINKS" \
           --tmsAdapterMode=${{ env.ADAPTER_MODE }} \
           --tmsCertValidation=false \
-          --testit
+          --testit \
+          --log-cli-level=debug \
+          --log-file=pytest.log \
+          --log-file-level=debug
 
-    - name: Wait for sync-storage completion (adapterMode=0)
-      if: always() && env.ADAPTER_MODE == '0'
+    - name: Wait for sync-storage completion
+      if: always()
       run: |
-        curl -v "http://127.0.0.1:49152/wait-completion?testRunId=${{ env.TEST_RUN_ID }}" || true
+        # Ждём, пока sync-storage применит все результаты, включая удерживаемый "in progress".
+        # Запас по времени больше TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S, чтобы fallback успел сработать.
+        # adapterMode=2: прогон создал адаптер, его id заранее неизвестен — вызываем без testRunId
+        WAIT_URL="http://127.0.0.1:49152/wait-completion"
+        if [ "${{ env.ADAPTER_MODE }}" == "0" ]; then
+          WAIT_URL="${WAIT_URL}?testRunId=${{ env.TEST_RUN_ID }}"
+        fi
+        curl -v --max-time $((TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S + 300)) "$WAIT_URL" || true
         if [ -f syncstorage.pid ]; then
           kill $(cat syncstorage.pid) || true
         fi
 
-    - name: Upload sync-storage logs (on failure)
-      if: failure() && env.ADAPTER_MODE == '0'
+    - name: Upload logs
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: syncstorage-logs
-        path: service.log
+        name: logs-adapterMode-${{ env.ADAPTER_MODE }}
+        path: |
+          sync-storage.log
+          pytest.log
+        retention-days: 1
+        if-no-files-found: ignore
