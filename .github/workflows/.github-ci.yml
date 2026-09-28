@@ -83,7 +83,7 @@ jobs:
           --tmsProjectId=${{ env.PROJECT_ID }} \
           --tmsConfigurationId=${{ env.CONFIGURATION_IDS }} \
           "${TEST_RUN_ARGS[@]}" \
-          --tmsTestRunName="Test run from CI/CD" \
+          --tmsTestRunName="GitHub Actions (adapterMode=${{ env.ADAPTER_MODE }})" \
           --tmsTestRunLinks="$TEST_RUN_LINKS" \
           --tmsAdapterMode=${{ env.ADAPTER_MODE }} \
           --tmsCertValidation=false \
