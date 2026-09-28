@@ -67,7 +67,7 @@ jobs:
           --port 49152 \
           --baseURL ${{ env.TMS_URL }} \
           --privateToken ${{ secrets.TMS_PRIVATE_TOKEN }} \
-          > sync-storage.log 2>&1 &
+          > service.log 2>&1 &
         echo $! > syncstorage.pid
         sleep 3
 
@@ -118,7 +118,7 @@ jobs:
       with:
         name: logs-adapterMode-${{ env.ADAPTER_MODE }}
         path: |
-          sync-storage.log
+          service.log
           pytest.log
         retention-days: 1
         if-no-files-found: ignore
