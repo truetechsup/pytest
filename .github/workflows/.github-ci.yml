@@ -27,9 +27,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install testit-adapter-pytest testit-cli
+        pip install testit-adapter-pytest
 
-    - name: Download sync-storage
+    - name: Download sync-storage (adapterMode=0)
+      if: env.ADAPTER_MODE == '0'
       run: |
         mkdir -p .caches
         # Получаем JSON последнего релиза
@@ -53,26 +54,8 @@ jobs:
         # Проверка, что скачан реальный исполняемый файл
         file .caches/syncstorage-linux-amd64 | grep -q "ELF.*executable" || { echo "Downloaded file is not an executable"; cat .caches/syncstorage-linux-amd64 | head -c 200; exit 1; }
 
-    - name: Ensure test run exists (create if not provided)
-      if: env.TEST_RUN_ID == ''
-      run: |
-        mkdir -p tmp
-        BASE_URL="${{ env.TMS_URL }}"
-        BASE_URL="${BASE_URL%/}"
-        BODY=$(jq -nc \
-          --arg projectId "${{ env.PROJECT_ID }}" \
-          --arg name "CI/CD Test Run $(date +'%Y-%m-%d %H:%M:%S')" \
-          '{projectId: $projectId, name: $name}')
-        curl -sS -f -X POST "${BASE_URL}/api/v2/testRuns" \
-          -H "accept: application/json" \
-          -H "Content-Type: application/json" \
-          -H "Authorization: PrivateToken ${{ secrets.TMS_PRIVATE_TOKEN }}" \
-          -d "$BODY" \
-          | jq -er '.id' > tmp/testrun_id.txt
-        echo "TEST_RUN_ID=$(cat tmp/testrun_id.txt)" >> $GITHUB_ENV
-        echo "TEST_RUN_ID=$(cat tmp/testrun_id.txt)" >> .env
-
-    - name: Start sync-storage
+    - name: Start sync-storage (adapterMode=0)
+      if: env.ADAPTER_MODE == '0'
       run: |
         nohup .caches/syncstorage-linux-amd64 \
           --testRunId ${{ env.TEST_RUN_ID }} \
@@ -83,42 +66,31 @@ jobs:
         echo $! > syncstorage.pid
         sleep 3
 
-    - name: Generate filter file (adapterMode=1 only)
-      if: env.ADAPTER_MODE == '1'
-      run: |
-        mkdir -p tmp
-        testit autotests_filter \
-          --url ${{ env.TMS_URL }} \
-          --configuration-id ${{ env.CONFIGURATION_IDS }} \
-          --testrun-id ${{ env.TEST_RUN_ID }} \
-          --framework pytest \
-          --disable-cert-validation \
-          --output tmp/filter.txt
-
     - name: Run tests
       run: |
-        if [ "${{ env.ADAPTER_MODE }}" == "1" ]; then
-          PYTEST_ARGS="$(cat tmp/filter.txt)"
-        else
-          PYTEST_ARGS="."
+        # adapterMode=0 — результаты пишутся в существующий прогон из вебхука
+        # adapterMode=2 — адаптер сам создаёт новый прогон, testRunId не передаём
+        TEST_RUN_ARGS=()
+        if [ "${{ env.ADAPTER_MODE }}" == "0" ]; then
+          TEST_RUN_ARGS+=(--tmsTestRunId=${{ env.TEST_RUN_ID }})
         fi
         TEST_RUN_LINKS=$(jq -nc \
           --arg runUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
           '[{url: $runUrl, title: "GitHub Actions pipeline", type: "Related"}]')
-        pytest $PYTEST_ARGS \
+        pytest . \
           --tmsUrl=${{ env.TMS_URL }} \
           --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
           --tmsProjectId=${{ env.PROJECT_ID }} \
           --tmsConfigurationId=${{ env.CONFIGURATION_IDS }} \
-          --tmsTestRunId=${{ env.TEST_RUN_ID }} \
+          "${TEST_RUN_ARGS[@]}" \
           --tmsTestRunName="Test run from CI/CD" \
           --tmsTestRunLinks="$TEST_RUN_LINKS" \
           --tmsAdapterMode=${{ env.ADAPTER_MODE }} \
           --tmsCertValidation=false \
           --testit
 
-    - name: Wait for sync-storage completion
-      if: always()
+    - name: Wait for sync-storage completion (adapterMode=0)
+      if: always() && env.ADAPTER_MODE == '0'
       run: |
         curl -v "http://127.0.0.1:49152/wait-completion?testRunId=${{ env.TEST_RUN_ID }}" || true
         if [ -f syncstorage.pid ]; then
@@ -126,7 +98,7 @@ jobs:
         fi
 
     - name: Upload sync-storage logs (on failure)
-      if: failure()
+      if: failure() && env.ADAPTER_MODE == '0'
       uses: actions/upload-artifact@v4
       with:
         name: syncstorage-logs
