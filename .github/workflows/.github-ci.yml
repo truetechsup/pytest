@@ -7,11 +7,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      # Через сколько секунд sync-storage сам завершит удерживаемый "in progress" результат.
-      # Задаётся на уровне job, чтобы подхватывался и нашим sync-storage (adapterMode=0),
-      # и тем, который адаптер запускает сам (adapterMode=2)
-      TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S: "600"
 
     steps:
     - uses: actions/checkout@v3
@@ -62,6 +57,8 @@ jobs:
     - name: Start sync-storage (adapterMode=0)
       if: env.ADAPTER_MODE == '0'
       run: |
+        # Через сколько секунд sync-storage сам завершит удерживаемый "in progress" результат
+        export TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S=600
         nohup .caches/syncstorage-linux-amd64 \
           --testRunId ${{ env.TEST_RUN_ID }} \
           --port 49152 \
@@ -75,6 +72,8 @@ jobs:
       run: |
         # adapterMode=0 — результаты пишутся в существующий прогон из вебхука
         # adapterMode=2 — адаптер сам создаёт новый прогон, testRunId не передаём
+        # и сам запускает sync-storage, который наследует переменные окружения pytest
+        export TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S=600
         TEST_RUN_ARGS=()
         if [ "${{ env.ADAPTER_MODE }}" == "0" ]; then
           TEST_RUN_ARGS+=(--tmsTestRunId=${{ env.TEST_RUN_ID }})
@@ -101,13 +100,13 @@ jobs:
       if: always()
       run: |
         # Ждём, пока sync-storage применит все результаты, включая удерживаемый "in progress".
-        # Запас по времени больше TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S, чтобы fallback успел сработать.
+        # Таймаут 900 с — больше TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S (600), чтобы fallback успел сработать.
         # adapterMode=2: прогон создал адаптер, его id заранее неизвестен — вызываем без testRunId
         WAIT_URL="http://127.0.0.1:49152/wait-completion"
         if [ "${{ env.ADAPTER_MODE }}" == "0" ]; then
           WAIT_URL="${WAIT_URL}?testRunId=${{ env.TEST_RUN_ID }}"
         fi
-        curl -v --max-time $((TMS_SYNC_STORAGE_AUTOCOMPLETE_FALLBACK_S + 300)) "$WAIT_URL" || true
+        curl -v --max-time 900 "$WAIT_URL" || true
         if [ -f syncstorage.pid ]; then
           kill $(cat syncstorage.pid) || true
         fi
