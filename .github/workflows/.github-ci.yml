@@ -102,6 +102,9 @@ jobs:
         else
           PYTEST_ARGS="."
         fi
+        TEST_RUN_LINKS=$(jq -nc \
+          --arg runUrl "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          '[{url: $runUrl, title: "GitHub Actions pipeline", type: "Related"}]')
         pytest $PYTEST_ARGS \
           --tmsUrl=${{ env.TMS_URL }} \
           --tmsPrivateToken=${{ secrets.TMS_PRIVATE_TOKEN }} \
@@ -109,6 +112,7 @@ jobs:
           --tmsConfigurationId=${{ env.CONFIGURATION_IDS }} \
           --tmsTestRunId=${{ env.TEST_RUN_ID }} \
           --tmsTestRunName="Test run from CI/CD" \
+          --tmsTestRunLinks="$TEST_RUN_LINKS" \
           --tmsAdapterMode=${{ env.ADAPTER_MODE }} \
           --tmsCertValidation=false \
           --testit
